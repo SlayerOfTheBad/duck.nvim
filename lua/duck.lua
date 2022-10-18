@@ -2,27 +2,52 @@ local M = {}
 M.ducks_list = {}
 local conf = {character="🦆", speed=1, width=2, height=1}
 
+local direction = function(duck)
+	local config = vim.api.nvim_win_get_config(duck)
+	local col, row = config["col"][false], config["row"][false]
+	local width, height = vim.o.columns - 2, vim.o.lines - 2
+
+	local chances = {
+		N = math.log(math.max(row, 1), 2),
+		W = math.log(math.max(col, 1), 2),
+		S = math.log(math.max(height-row, 1), 2),
+		E = math.log(math.max(width-col, 1), 2),
+	}
+	local totalChance = chances.N + chances.W + chances.S + chances.E
+
+	local movement = math.random()*totalChance
+	local accum = 0
+
+	for dir, chance in pairs(chances) do
+		accum = accum + chance
+		if accum > movement then
+			return dir
+		end
+	end
+
+	return "E"
+end
+
 -- TODO: a mode to wreck the current buffer?
 local waddle = function(duck)
 	local timer = vim.loop.new_timer()
 	local new_duck = { name = duck, timer = timer }
 	table.insert(M.ducks_list, new_duck)
 
-	local speed = math.abs(100 - conf.speed)
-	vim.loop.timer_start(timer, 1000, speed , vim.schedule_wrap(function()
+	local speed = math.abs(200 - conf.speed)
+	vim.loop.timer_start(timer, 100, speed , vim.schedule_wrap(function()
 		if vim.api.nvim_win_is_valid(duck) then
 			local config = vim.api.nvim_win_get_config(duck)
 			local col, row = config["col"][false], config["row"][false]
 
-			math.randomseed(os.time()*duck)
-			local movement = math.ceil(math.random()*4)
-			if movement == 1 or row <= 0 then
+			local movement = direction(duck)
+			if movement == "S" or row <= 0 then
 				config["row"] = row + 1
-			elseif movement == 2 or row >= vim.o.lines-1 then
+			elseif movement == "N" or row >= vim.o.lines-1 then
 				config["row"] = row - 1
-			elseif movement == 3 or col <= 0 then
+			elseif movement == "E" or col <= 0 then
 				config["col"] = col + 1
-			elseif movement == 4 or col >= vim.o.columns-2 then
+			elseif movement == "W" or col >= vim.o.columns-2 then
 				config["col"] = col - 1
 			end
 			vim.api.nvim_win_set_config(duck, config)
